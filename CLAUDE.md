@@ -1,8 +1,8 @@
 # COMP4020 prototype
 
-This is your starter repo for a COMP4020 prototype: a static site written in
-HTML/CSS/TypeScript that builds to plain HTML/CSS/JS and deploys to GitHub
-Pages. The **deployed site is what gets marked** --- not this repo, and not "it
+This is your COMP4020 prototype: a static site (this week built with Astro, see
+"The stack is swappable" below) that builds to plain HTML/CSS/JS and deploys to
+GitHub Pages. The **deployed site is what gets marked** --- not this repo, and not "it
 works on my machine". It's marked live in Chrome against the deployed URL at two
 viewports --- 1920×1080 (desktop) and 390×844 (phone) --- and both count in
 full, so make that artefact good at both and use the checks below to know
@@ -21,9 +21,13 @@ and see `spec/README.md` for how the checks in this repo relate to it.
 - Before you push, run `pnpm check`. It runs most of what CI runs --- build,
   lint, and the spec --- so you catch those in seconds instead of waiting for
   the pipeline. The links check, the evidence check, the secrets scan, and the
-  deploy itself only run in CI; run `pnpm dlx linkinator ./dist --silent`
-  locally against a fresh `pnpm build` for the links check without waiting for
-  CI.
+  deploy itself only run in CI; reproduce the links check locally against a
+  fresh `pnpm build` with
+  `pnpm dlx linkinator ./dist --silent --url-rewrite-search "/comp4020-ass1-BrynMtchll/" --url-rewrite-replace "/"`
+  --- see `.github/workflows/checks.yml` for why the rewrite flags are there:
+  `astro.config.mjs`'s `base` makes every link root-absolute under
+  `/comp4020-ass1-BrynMtchll/`, correct once deployed but not when linkinator
+  crawls `dist/` directly as the site root.
 - To see what the page actually looks like rather than what you assume it looks
   like, open it in a browser (the `agent-browser` CLI, documented on
   [the course site](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/backpressure/#agent-browser-the-rendered-page-as-ground-truth),
@@ -97,22 +101,28 @@ CI machine, not proof the site is fast for real users.
 
 ## The stack is swappable
 
-Out of the box this is plain HTML/CSS/TypeScript on Vite, and every `.html` file
-in the repo is a page: add pages, link them, and the build picks them up with no
-config. That's a default, not a rule (unless the week's spec says otherwise).
-You can swap in Astro or any other static generator, because nothing in CI names
-a tool --- the whole contract is:
+This repo carries forward the swap from the template's default plain
+HTML/CSS/TypeScript-on-Vite to **Astro**, made in `comp4020-crit2`. Pages live in `src/pages/` as
+`.astro` files (each one an entry, same "add it, link it" model as the
+template's `.html` files); shared CSS lives in `src/styles/`. Nothing in CI
+names a tool --- the whole contract, whatever stack a given week uses, is:
 
 - `pnpm build` emits the complete site into `dist/`
 - the `package.json` scripts (`check`, `check:evidence`, `build`) keep working
 - whatever lands in `dist/` still passes the invariants in `spec/`
 
-Two things bite in a swap. The deployed site lives under a path
-(`…github.io/<repo>/`), so configure your generator's base path --- this
-template's Vite config uses relative asset URLs to sidestep that, but most
-generators (Astro included) need `base` set explicitly, and getting it wrong
-looks fine locally while every asset 404s on the live URL. And commit the
-updated `pnpm-lock.yaml`: CI installs with `--frozen-lockfile`.
+Two things bite in a swap, and both are already handled here, so don't
+re-solve them if you swap again next week. The deployed site lives under a
+path (`…github.io/<repo>/`), so `astro.config.mjs` sets `base` to
+`/comp4020-ass1-BrynMtchll/` explicitly --- Astro prefixes asset URLs it
+generates itself (imported CSS, `astro:assets`) with that automatically, but
+any hand-written `<a href>` needs `import.meta.env.BASE_URL` prepended
+yourself, or it 404s once deployed while looking fine in `astro dev`. And
+commit the updated `pnpm-lock.yaml`: CI installs with `--frozen-lockfile`.
+
+`pnpm typecheck` runs `astro check` (via `@astrojs/check`), not bare `tsc`,
+since `tsc` alone can't type-check `.astro` files; `tsconfig.json` extends
+`astro/tsconfigs/strict` accordingly.
 
 ## Your process is part of the mark
 
