@@ -1,35 +1,43 @@
 ---
 import "../styles/global.css";
-import { scalePoints } from "../data/scale-points";
-import ScalePoint from "../components/ScalePoint.astro";
+import { squareMilestones } from "../data/square-milestones";
 
-// One "beat" of scroll room per point on the ladder, so the zoom has enough
-// runway to actually pass through each point's dot -> detail -> dot
-// transition rather than skipping past several per screenful.
-const RUNWAY_VH_PER_POINT = 60;
-const zoomRunwayVh = scalePoints.length * RUNWAY_VH_PER_POINT;
+const squaresGridSrc = `${import.meta.env.BASE_URL}squares-grid.svg`;
 
-// The footer cites ai-money points only — reference points aren't claims, so
-// they carry their "for scale" note inline instead of a footer entry. A
-// handful of points share one underlying deal (e.g. the Tunguz breakdown
-// backs Nvidia, Microsoft, and Oracle's figures), so this groups by source
-// rather than listing the same citation three times.
+// One real, descriptive alt per grid (screen readers hear it once), the
+// other 8 tiles in each 3x3 arrangement are pure visual repetition —
+// aria-hidden so they don't get announced 9 times over.
+const gridAlt =
+  "A grid of individual squares, tiled around itself in a 3 by 3 arrangement, zooming out until all 9 tiles fill the view, then dissolving into a fresh grid that repeats the same zoom-out — a fractal loop where each square eventually stands for an entire previous grid.";
+
+// Two loops. Loop 1 zooms one square out to a full nine-grid view; loop 2's
+// single square stands for that entire finished grid and repeats the move.
+const cycleLayers = [
+  { layer: "cycle-loop1", src: squaresGridSrc },
+  { layer: "cycle-loop2", src: squaresGridSrc },
+];
+
+// The footer cites real, sourced figures only ("fact" milestones) — analogy
+// entries aren't claims, so they don't need a source. A couple of milestones
+// share one underlying deal (e.g. the Tunguz breakdown backs Nvidia,
+// Microsoft, and Oracle's figures), so this groups by source rather than
+// listing the same citation three times.
 const citationGroups = Array.from(
-  scalePoints
-    .filter((point) => point.kind === "ai-money" && point.citation)
-    .reduce((groups, point) => {
-      const citation = point.citation!;
+  squareMilestones
+    .filter((milestone) => milestone.kind === "fact" && milestone.citation)
+    .reduce((groups, milestone) => {
+      const citation = milestone.citation!;
       const key = citation.url;
       const existing = groups.get(key);
       if (existing) {
-        if (!existing.labels.includes(point.label)) {
-          existing.labels.push(point.label);
+        if (!existing.labels.includes(milestone.statement)) {
+          existing.labels.push(milestone.statement);
         }
       } else {
         groups.set(key, {
           source: citation.source,
           url: citation.url,
-          labels: [point.label],
+          labels: [milestone.statement],
         });
       }
       return groups;
@@ -43,39 +51,61 @@ const citationGroups = Array.from(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>How big is the AI bet?</title>
+    <title>A trillion squares — money invested in AI, one dollar at a time</title>
   </head>
   <body>
-    <header>
-      <nav aria-label="Primary">
-        <a href={import.meta.env.BASE_URL}>Home</a>
-      </nav>
-    </header>
     <main>
-      <div class="hero">
-        <p class="kicker">Money committed to AI, at scale</p>
-        <h1>How big is the AI bet?</h1>
-        <p class="framing">
-          Scroll to zoom out — from a single dollar bill to the trillions
-          committed to AI infrastructure, passing familiar amounts and sourced
-          AI deals along the way.
-        </p>
-      </div>
-
       <section
         class="zoom-wrapper"
         id="zoom-wrapper"
-        style={`--runway: ${zoomRunwayVh}vh`}
-        aria-label="A zoom from one dollar to trillions committed to AI"
+        aria-label="A zoom through a fractal grid of squares, each square a dollar, ending at worldwide AI spending"
       >
         <div class="zoom-stage" id="zoom-stage">
-          <svg class="zoom-svg" id="zoom-svg">
-            <g id="camera">
-              {scalePoints.map((point) => <ScalePoint point={point} />)}
-            </g>
-          </svg>
-          <p class="camera-readout" id="camera-readout" aria-hidden="true"></p>
-          <div class="milestone-nav" id="milestone-nav">
+          <div class="hero">
+            <p class="kicker">Every square is a dollar</p>
+            <h1>How much has the world bet on AI?</h1>
+            <p class="framing">
+              Scroll to zoom out. Each square is a dollar — and once nine
+              grids fill the screen, that whole grid becomes just one square
+              in the next zoom-out, so the tally keeps climbing long after
+              the shapes loop back to where they started.
+            </p>
+          </div>
+          {
+            cycleLayers.map(({ layer, src }, loopIndex) => (
+              <div class:list={["cycle", layer]}>
+                <div class="square-canvas">
+                  <div class="tile-grid">
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt={loopIndex === 0 ? gridAlt : ""} aria-hidden={loopIndex === 0 ? undefined : "true"} />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                    <img src={src} alt="" aria-hidden="true" />
+                  </div>
+                </div>
+              </div>
+            ))
+          }
+          {/* The readout. Its digits change every animation frame, so the
+              whole panel is aria-hidden — announcing it would flood a screen
+              reader with thousands of numbers. The statement below is the
+              aria-live channel instead: it changes only when the tally
+              crosses a named milestone, which is the part worth hearing.
+              The label is what makes the number mean anything; without it
+              the corner just holds an unexplained figure. */}
+          <div class="tally" aria-hidden="true">
+            <p class="tally-label">Squares on screen</p>
+            <p class="tally-value" id="square-tally">1</p>
+          </div>
+          <p class="square-statement" id="square-statement" aria-live="polite">
+          </p>
+          {/* The page's one real navigation landmark: the reduced-motion path
+              steps through the same milestones the scroll otherwise scrubs. */}
+          <nav class="milestone-nav" id="milestone-nav" aria-label="Milestones">
             <button type="button" id="milestone-prev" class="milestone-btn">
               ◀ Previous
             </button>
@@ -83,18 +113,26 @@ const citationGroups = Array.from(
             <button type="button" id="milestone-next" class="milestone-btn">
               Next ▶
             </button>
-          </div>
+          </nav>
         </div>
       </section>
 
-      <footer class="citations">
+      {/* Kept in the document but off the visual page: the zoom is meant to
+          end on the final number, not on a wall of references stacked under
+          the fixed readout. The citations still need to exist — they back the
+          "fact" milestones, they're what the links check crawls, and a screen
+          reader still reaches them — so this hides them rather than deleting
+          them. */}
+      <footer class="citations is-hidden">
         <h2>Sources</h2>
         <ul>
           {
             citationGroups.map((group) => (
               <li>
-                <strong>{group.labels.join(", ")}</strong>:{" "}
-                <a href={group.url}>{group.source}</a>
+                <strong>{group.labels.join(" ")}</strong>{" "}
+                <a href={group.url} class="citation-link">
+                  {group.source}
+                </a>
               </li>
             ))
           }
@@ -102,141 +140,111 @@ const citationGroups = Array.from(
       </footer>
     </main>
     <script>
+      import { squareMilestones } from "../data/square-milestones";
       import {
-        milestoneIds,
-        minAmountUSD,
-        maxAmountUSD,
-        scalePoints,
-      } from "../data/scale-points";
-      import {
-        classifyLod,
-        computeCameraRank,
-        computeCameraWorldX,
-        computeFocusedRank,
-        computeOnScreenPx,
-        formatDollars,
-        PIXELS_PER_DECADE,
-        progressToCameraAmount,
-      } from "../lib/scale-math";
-      import {
-        getScrollProgress,
-        initLenis,
-        prefersReducedMotion,
-      } from "../lib/scroll-state";
-
-      const lenis = initLenis();
-
-      // The on-screen size (px) a point exactly at the camera's current
-      // amount renders at — every other point's size falls off from this by
-      // 10 ** -decadesAway (see computeOnScreenPx). This is what makes the
-      // zoom actually a zoom: the current focal point's disc grows to
-      // BLEED PAST the viewport edges (not just fill a small fixed card),
-      // recomputed every frame off the live viewport so it holds on resize.
-      const REFERENCE_PX_BLEED = 1.3;
+        amountToProgress,
+        loopPositionForProgress,
+        visibleSquareCount,
+      } from "../lib/square-tally";
+      import { formatSquares } from "../lib/scale-math";
+      import { getScrollProgress, prefersReducedMotion } from "../lib/scroll-state";
 
       const wrapper = document.querySelector<HTMLElement>("#zoom-wrapper");
       const stage = document.querySelector<HTMLElement>("#zoom-stage");
-      const camera = document.querySelector<SVGGElement>("#camera");
-      const readout = document.querySelector<HTMLElement>("#camera-readout");
+      const tally = document.querySelector<HTMLElement>("#square-tally");
+      const statementEl = document.querySelector<HTMLElement>("#square-statement");
       const prevBtn = document.querySelector<HTMLButtonElement>("#milestone-prev");
       const nextBtn = document.querySelector<HTMLButtonElement>("#milestone-next");
       const milestoneLabel = document.querySelector<HTMLElement>("#milestone-label");
+      const cycleEls = Array.from(
+        document.querySelectorAll<HTMLElement>(".cycle"),
+      );
 
-      if (wrapper && stage && camera) {
-        const pointEls = Array.from(
-          stage.querySelectorAll<SVGGElement>(".scale-point"),
-        );
-        const sortedAmounts = scalePoints.map((point) => point.amountUSD);
-        const amountByEl = new Map(
-          pointEls.map((el) => {
-            const point = scalePoints.find((p) => p.id === el.dataset.scaleId);
-            return [el, point?.amountUSD ?? 0] as const;
-          }),
-        );
-        const rankByEl = new Map(
-          pointEls.map((el) => {
-            const rank = scalePoints.findIndex(
-              (p) => p.id === el.dataset.scaleId,
-            );
-            return [el, rank < 0 ? 0 : rank] as const;
-          }),
-        );
-        const discByEl = new Map(
-          pointEls.map((el) => [
-            el,
-            el.querySelector<SVGCircleElement>(".scale-point-disc"),
-          ]),
-        );
-        // The one shared write that makes this a "camera": a single
-        // translate, applied uniformly to the whole scene via the <g>
-        // every point lives inside. No individual point's own position is
-        // ever set anywhere else in this file or in ScalePoint.astro — only
-        // this transform moves. Each point's `r` (from the shared
-        // computeOnScreenPx formula) and data-lod/data-content-focused are
-        // still set per point, but from the one shared cameraAmount, never
-        // independently tuned.
-        function renderCamera(cameraAmount: number): void {
-          const stageRect = stage!.getBoundingClientRect();
-          const cameraX =
-            stageRect.width / 2 -
-            computeCameraWorldX(cameraAmount, PIXELS_PER_DECADE);
-          camera!.setAttribute(
-            "transform",
-            `translate(${cameraX}, ${stageRect.height / 2})`,
-          );
+      // Precomputed once: each milestone's scroll progress, ascending in the
+      // same order as squareMilestones (already sorted by amountUSD).
+      const milestonesWithProgress = squareMilestones.map((milestone) => ({
+        ...milestone,
+        progress: amountToProgress(milestone.amountUSD),
+      }));
 
-          const referencePx =
-            Math.max(window.innerWidth, window.innerHeight) *
-            REFERENCE_PX_BLEED;
-          const cameraRank = computeCameraRank(cameraAmount, sortedAmounts);
-          const focusedRank = computeFocusedRank(cameraRank);
-          for (const el of pointEls) {
-            const amount = amountByEl.get(el) ?? 0;
-            const onScreenPx = computeOnScreenPx(
-              amount,
-              cameraAmount,
-              referencePx,
-            );
-            el.dataset.lod = classifyLod(onScreenPx, referencePx);
-            // onScreenPx is a diameter (same convention as the old
-            // --disc-px width); halve it for the circle's radius.
-            discByEl.get(el)?.setAttribute("r", `${onScreenPx / 2}`);
-            const rank = rankByEl.get(el) ?? 0;
-            el.toggleAttribute("data-content-focused", rank === focusedRank);
-          }
-          if (readout) {
-            readout.textContent = formatDollars(cameraAmount);
+      function findActiveMilestone(progress: number) {
+        let active = milestonesWithProgress[0];
+        for (const milestone of milestonesWithProgress) {
+          if (milestone.progress <= progress) {
+            active = milestone;
+          } else {
+            break;
           }
         }
+        return active;
+      }
 
-        const milestones = milestoneIds
-          .map((id) => scalePoints.find((point) => point.id === id))
-          .filter((point): point is (typeof scalePoints)[number] =>
-            Boolean(point),
-          );
+      const STATEMENT_FADE_MS = 260;
+      let activeStatementId: string | undefined;
 
+      function setStatement(text: string, instant: boolean): void {
+        if (!statementEl) return;
+        if (instant) {
+          statementEl.textContent = text;
+          statementEl.setAttribute("data-active", "");
+          return;
+        }
+        statementEl.removeAttribute("data-active");
+        window.setTimeout(() => {
+          statementEl.textContent = text;
+          statementEl.setAttribute("data-active", "");
+        }, STATEMENT_FADE_MS);
+      }
+
+      if (wrapper && stage && tally) {
         if (prefersReducedMotion()) {
-          // No pin, no scroll-driven zoom — the same fixed scene and the
-          // same shared camera mechanism, just moved discretely between
-          // milestones by a button press or arrow key instead of every
-          // animation frame.
+          // No pin, no scroll-driven zoom — step discretely through the
+          // same milestones by a button press or arrow key, rendering one
+          // static grid (scale + which loop) per press.
           wrapper.classList.add("reduced-motion");
           let milestoneIndex = 0;
 
           function showMilestone(index: number): void {
             milestoneIndex = Math.max(
               0,
-              Math.min(milestones.length - 1, index),
+              Math.min(milestonesWithProgress.length - 1, index),
             );
-            const milestone = milestones[milestoneIndex];
+            const milestone = milestonesWithProgress[milestoneIndex];
             if (!milestone) return;
-            renderCamera(milestone.amountUSD);
+
+            const { loopIndex, scale } = loopPositionForProgress(milestone.progress);
+            // Matches the layer classes in the markup above. These used to be
+            // suffixed "-a" from the old six-layer A/B build, so the lookup
+            // matched nothing, no layer ever got is-active, and this path
+            // rendered no static grid at all.
+            //
+            // Clamped to the layers that actually exist. square-tally.ts still
+            // models three loops while the page now renders two, so every
+            // milestone past ~8.4 billion resolves to loopIndex 2 and would
+            // look for a .cycle-loop3 that was removed — leaving this path
+            // with no grid at all for the top third of the ladder. Clamping
+            // holds those milestones on the furthest-out grid there is.
+            const layerNumber = Math.min(loopIndex, cycleEls.length - 1) + 1;
+            const activeLayerClass = `cycle-loop${layerNumber}`;
+            for (const el of cycleEls) {
+              const isActive = el.classList.contains(activeLayerClass);
+              el.classList.toggle("is-active", isActive);
+              el.style.transform = isActive ? `scale(${scale})` : "";
+            }
+
+            // No running tally on this path — the number isn't being scrubbed,
+            // so the milestone's own count in the nav label below is the
+            // readout, and a second copy of it in the corner would just be
+            // the same figure twice. Same square count the animated path's
+            // tally would show here, since 1 square === $1.
+            setStatement(milestone.statement, true);
             if (milestoneLabel) {
-              milestoneLabel.textContent = `${milestone.label} — ${formatDollars(milestone.amountUSD)}`;
+              milestoneLabel.textContent = `${formatSquares(milestone.amountUSD)} squares`;
             }
             if (prevBtn) prevBtn.disabled = milestoneIndex === 0;
             if (nextBtn) {
-              nextBtn.disabled = milestoneIndex === milestones.length - 1;
+              nextBtn.disabled =
+                milestoneIndex === milestonesWithProgress.length - 1;
             }
           }
 
@@ -254,66 +262,21 @@ const citationGroups = Array.from(
 
           showMilestone(0);
         } else {
-          const minLog = Math.log10(minAmountUSD);
-          const maxLog = Math.log10(maxAmountUSD);
-          const milestoneProgresses = milestones.map(
-            (point) => (point.logValue - minLog) / (maxLog - minLog),
-          );
-
-          // Milestone "snap": once scrolling settles (no Lenis scroll event
-          // for SETTLE_DELAY_MS), ease toward the nearest milestone if it's
-          // close enough — via Lenis's own scrollTo, which further user
-          // scroll input interrupts cleanly. This is the JS fallback the
-          // plan allows in place of CSS scroll-snap, since Lenis already
-          // owns the scroll and a native snap point fighting a smoothed
-          // scroll position is a known way for the two to fight each other.
-          const SETTLE_DELAY_MS = 150;
-          const SNAP_THRESHOLD = 0.04;
-          let settleTimer: ReturnType<typeof setTimeout> | undefined;
-
-          function scrollYForProgress(progress: number): number {
-            const rect = wrapper!.getBoundingClientRect();
-            const scrollY = lenis.scroll;
-            const wrapperTop = scrollY + rect.top;
-            const scrollableDistance = Math.max(
-              0,
-              wrapper!.offsetHeight - window.innerHeight,
-            );
-            return wrapperTop + progress * scrollableDistance;
-          }
-
-          function scheduleSnapCheck(): void {
-            if (settleTimer) clearTimeout(settleTimer);
-            settleTimer = setTimeout(() => {
-              const progress = getScrollProgress(wrapper!);
-              let nearestProgress: number = milestoneProgresses[0] ?? 0;
-              let nearestDistance = Infinity;
-              for (const milestoneProgress of milestoneProgresses) {
-                const distance = Math.abs(milestoneProgress - progress);
-                if (distance < nearestDistance) {
-                  nearestDistance = distance;
-                  nearestProgress = milestoneProgress;
-                }
-              }
-              if (nearestDistance > 0.0005 && nearestDistance < SNAP_THRESHOLD) {
-                lenis.scrollTo(scrollYForProgress(nearestProgress), {
-                  duration: 0.6,
-                  easing: (t: number) => 1 - (1 - t) ** 3,
-                });
-              }
-            }, SETTLE_DELAY_MS);
-          }
-
-          lenis.on("scroll", scheduleSnapCheck);
+          const initial = findActiveMilestone(0);
+          activeStatementId = initial.id;
+          setStatement(initial.statement, true);
 
           function onScrollFrame(): void {
             const progress = getScrollProgress(wrapper!);
-            const cameraAmount = progressToCameraAmount(
-              progress,
-              minAmountUSD,
-              maxAmountUSD,
-            );
-            renderCamera(cameraAmount);
+            const count = visibleSquareCount(progress);
+            tally!.textContent = formatSquares(count);
+
+            const milestone = findActiveMilestone(progress);
+            if (milestone.id !== activeStatementId) {
+              activeStatementId = milestone.id;
+              setStatement(milestone.statement, false);
+            }
+
             requestAnimationFrame(onScrollFrame);
           }
 

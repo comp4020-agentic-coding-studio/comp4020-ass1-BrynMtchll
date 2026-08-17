@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1000" viewBox="0 0 1000 1000">
+<!-- A 101x101 grid of squares, drawn as ONE tiled pattern instead of 10,201
+     individual <rect> nodes. Identical geometry: cell pitch 1000/101 =
+     9.901, a 7.0011 square inset 1.45 on every side. The previous version
+     was 765 KB and every one of its rects had to be walked on each raster —
+     27 times over, since the page instantiates this file 9 times per loop
+     across 3 loops. The renderer now rasterises a single cell and repeats
+     it. Original kept at /tmp if the explicit-rect version is ever needed. -->
+<defs>
+<pattern id="cell" width="9.901" height="9.901" patternUnits="userSpaceOnUse">
+<rect x="1.45" y="1.45" width="7.0011" height="7.0011" fill="#333"/>
+</pattern>
+</defs>
+<rect width="1000" height="1000" fill="url(#cell)"/>
+</svg>

@@ -6,6 +6,18 @@
   --line: #dcd7cc;
   --accent: #a13d2c;
   --accent-ink: #7a2d1f;
+  --ink-deep: #14161a;
+  --amber: #e0912f;
+  --amber-soft: #f2b45c;
+
+  /* One wash per fractal loop, warming as the numbers get less believable.
+     The squares themselves are dark on transparent, so tinting the ground
+     behind a loop's grid colours every gap in it at once — which means the
+     colour is doing work: you can see at a glance which pass you are in,
+     and the handover to a new loop reads as a change of state rather than
+     just more of the same texture. */
+  --wash-1: #fdfaf4;
+  --wash-2: #fbeadc;
   --serif: "Iowan Old Style", "Palatino Linotype", palatino, georgia, ui-serif,
     serif;
   --sans: -apple-system, blinkmacsystemfont, "Segoe UI", inter, system-ui,
@@ -71,48 +83,70 @@ h2 {
   margin: 0 0 1.25rem;
 }
 
-/* Header / nav */
-
-header {
-  border-bottom: 1px solid var(--line);
-  background: var(--paper);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-header nav {
-  max-width: var(--container);
-  margin: 0 auto;
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-}
-
-header nav a {
-  font-family: var(--serif);
-  font-weight: 600;
-  font-size: 1.05rem;
-  color: var(--ink);
-  text-decoration: none;
-  letter-spacing: -0.01em;
-}
-
-header nav a::before {
-  content: "◆ ";
-  color: var(--accent);
-  font-size: 0.7rem;
-  vertical-align: middle;
-}
+/* No site header. This is a single full-bleed scrollytelling page with
+   nowhere else to go, and a sticky bar with a "Home" link back to itself
+   only cut a hard line across the top of the zoom. */
 
 a:hover {
   color: var(--accent);
 }
 
-/* Hero */
-
+/* Hero — an overlay pinned inside the zoom stage itself (not normal document
+   flow) so the intro copy costs zero extra scroll height: the shared
+   scroll(root block) timeline the .cycle layers use would otherwise be
+   thrown off by however tall this text renders at a given viewport width.
+   Fades out over the first sliver of scroll via the same shared timeline. */
 .hero {
-  padding: 4.5rem 0 1rem;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: 100%;
+  max-width: var(--container);
+  padding: 2.25rem 2rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow:
+    0 2px 6px rgb(22 24 29 / 6%),
+    0 24px 60px rgb(22 24 29 / 14%);
+  animation: hero-fade linear;
+  animation-timeline: scroll(root block);
+}
+
+/* Reduced motion has no scroll-driven fade to hide behind, so the intro
+   copy reverts to plain static content instead of a fading overlay. */
+.zoom-wrapper.reduced-motion .hero {
+  position: static;
+  transform: none;
+  width: auto;
+  padding: 2rem 0 1rem;
+  background: none;
+  border: none;
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes hero-fade {
+  0% {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  2% {
+    opacity: 0;
+  }
+
+  2.0001% {
+    visibility: hidden;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 
 h1 {
@@ -130,25 +164,38 @@ h1 {
 .kicker {
   display: inline-block;
   font-family: var(--sans);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent-ink);
-  margin: 0 0 1rem;
+  color: var(--paper);
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  margin: 0 0 1.1rem;
 }
 
-/* Zoom stage — the site's one continuous scroll-driven mechanic. A tall
-   full-bleed wrapper holds a sticky full-viewport stage; every scale point
-   shares one center point and is sized every frame from its computed
-   on-screen px (see index.astro's onScrollFrame). */
+/* Squares zoom — the site's one continuous scroll-driven mechanic. Two
+   full-viewport layers, one per loop, stacked directly on top of each other
+   and both sharing the SAME scroll(root block) timeline, with a crossfading
+   dissolve at the loop boundary so only one is ever fully opaque at a
+   time — see the two @keyframes blocks below. Loop 2's "1 square" stands
+   for the entirety of loop 1's finished 91,809-square grid: a genuine
+   self-similar fractal zoom-out, which is what carries the on-screen count
+   from 1 to 91,809^2 across the two passes.
+
+   NOTE: square-tally.ts still models THREE loops and still targets $2.5T,
+   which two passes cannot reach — 91,809^2 is about 8.4 billion. The
+   readout and the picture disagree at the end until one of them moves. */
 
 .zoom-wrapper {
   position: relative;
   left: 50%;
   width: 100vw;
   margin-left: -50vw;
-  height: calc(100vh + var(--runway, 0vh));
+
+  /* 2220vh of scroll per loop, same as the three-loop version had. */
+  height: 4440vh;
 }
 
 .zoom-wrapper.reduced-motion {
@@ -168,68 +215,274 @@ h1 {
   height: 100vh;
 }
 
-/* One fixed SVG scene: every point is laid out once (see ScalePoint.astro)
-   and the ONLY thing that moves afterwards is the shared <g id="camera">
-   transform set in index.astro — a single translate applied uniformly to
-   the whole scene, never a per-object position. */
-.zoom-svg {
+.cycle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform-origin: center center;
+
+  /* will-change belongs on the element that actually moves. It used to sit
+     on img, which promoted all 18 tiles (9 per loop x 2 loops) into their
+     own compositor layers — each one sized to its transformed bounds, which
+     at scale(101) is enormous — even though the tiles never move relative
+     to one another. Only .cycle is ever transformed, so two layers do the
+     job that 18 were being allocated for. */
+  will-change: transform;
+}
+
+img {
+  /* image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges; */
+}
+
+/* A real square box (matching squares-grid.svg's 1:1 aspect ratio).
+   .tile-grid tiles this, not .cycle directly, so every copy's edges meet its
+   neighbors' seamlessly.
+
+   Sized to the viewport's LONGER side, not its height. At the "nine grids
+   fill the view" moment (scale 1/3) the tiling spans exactly one canvas
+   width, so a height-sized canvas only filled a 1080px square on a 1920px
+   screen and left bare paper gutters down both sides at the visual climax
+   of every loop. Covering the long side crops the grid vertically instead,
+   which is the right trade for a full-bleed piece. */
+.square-canvas {
+  position: relative;
+  height: max(100vh, 100vw);
+  aspect-ratio: 1 / 1;
+}
+
+/* Nine copies of the same grid in a 3x3 arrangement, the center cell sized
+   and positioned to exactly match .square-canvas's own box — so scale(1)
+   shows just that one cell. At scale(1/3) all nine exactly fill the
+   viewport edge to edge, the "9 grids fully in view" moment each loop
+   dissolves on. */
+.tile-grid {
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  display: grid;
+  width: 300%;
+  height: 300%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.tile-grid img {
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.scale-point {
-  pointer-events: none;
+.cycle-loop1 {
+  animation: loop-1 linear;
+  animation-timeline: scroll(root block);
 }
 
-/* The actual "zoom" — this disc's radius is set every frame straight from
-   the point's true computed on-screen size (see index.astro's shared
-   computeOnScreenPx call), continuously, from a barely-visible speck up to
-   viewport-filling. Colored by category, not by kind — kind still drives the
-   citation-vs-note split in the content below, but reading everyday
-   purchases through national-scale figures as one flat color loses the
-   coffee-vs-GDP distinction the disc is meant to carry. */
-.scale-point-disc {
-  opacity: 0.16;
+.cycle-loop2 {
+  animation: loop-2 linear;
+  animation-timeline: scroll(root block);
 }
 
-.scale-point[data-category="everyday"] .scale-point-disc {
-  fill: var(--ink-soft);
+/* Tint per loop. This sits on the tile images, not on .cycle, so it rides
+   the layer's own opacity through the dissolve instead of dropping an
+   opaque plate over the layer underneath mid-crossfade. */
+.cycle-loop1 .tile-grid img {
+  background: var(--wash-1);
 }
 
-.scale-point[data-category="corporate"] .scale-point-disc {
-  fill: #2f6f6f;
+.cycle-loop2 .tile-grid img {
+  background: var(--wash-2);
 }
 
-.scale-point[data-category="national"] .scale-point-disc {
-  fill: #3a5ba0;
+
+/* Reduced motion: no scroll-driven layers at all — a single static grid,
+   scaled by inline style per milestone (see showMilestone in index.astro).
+   Cancelling the animation is what lets that inline transform take effect:
+   a running CSS animation outranks an inline style, so while these rules
+   were commented out every layer kept scrubbing its scroll timeline and the
+   static grid never appeared. */
+.zoom-wrapper.reduced-motion .cycle {
+  animation: none;
+  opacity: 0;
 }
 
-.scale-point[data-category="ai-investment"] .scale-point-disc {
-  fill: var(--accent);
+.zoom-wrapper.reduced-motion .cycle.is-active {
+  opacity: 1;
 }
 
-/* Text content (label/amount/citation-or-note) lives in a <foreignObject> so
-   it stays legible regardless of how large or small the disc it sits on is,
-   and so citations stay real, keyboard-focusable <a> elements. Only ONE
-   point's content is ever shown at a time — whichever the per-frame script
-   marks [data-content-focused] (see computeFocusedRank in scale-math.ts) —
-   matching Scale of the Universe's single-caption feel instead of stacking
-   multiple simultaneously-visible labels around the screen. A short opacity
-   transition softens the handoff as focus moves from one point to the
-   next; visibility flips instantly on the way in (so the incoming caption
-   is immediately in the a11y tree) but is delayed on the way out (so it
-   doesn't vanish before it's finished fading, and only one point is ever
-   keyboard/AT reachable). */
-.scale-point-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+/* HAND-TUNED — the dissolve alignment lives in these exact numbers. Each
+   loop's layer zooms 101 → 0.33333 (one square out to nine full grids),
+   then keeps zooming past it while fading out, handing over to the next
+   loop's layer, which leads in from 150 so it is already moving by the time
+   it becomes visible. The lead-in ramp is deliberately gentler than the
+   sweep; that difference is what makes the two layers line up through the
+   crossfade, so don't "regularise" the steps.
+
+   These were once regenerated from square-tally.ts's model to force the
+   counter and the visuals onto one curve. That is mathematically tidier and
+   it broke the dissolve, so the tuning won. The counter is therefore NOT in
+   step with the zoom (see the note in square-tally.ts). */
+
+/* stylelint-disable declaration-block-single-line-max-declarations,
+   number-max-precision, comment-empty-line-before --
+   A zoom ramp is a table: percentage down one column, scale down the next,
+   so you can read the geometric progression and spot a step that's out of
+   line. Splitting each step across three lines to satisfy the default
+   one-declaration-per-line rule would triple the block and destroy exactly
+   the property that makes it checkable by eye. And the 5-decimal scales are
+   tuned values, not sloppy ones — rounding 0.59023 to satisfy a formatting
+   default would nudge the very alignment these numbers exist to hold.
+   Scoped to these three blocks; both rules still apply everywhere else. */
+/* Two loops, not three. Every scale value below is untouched from the tuned
+   three-loop version — only the TIMES are stretched, all by the same 1.6x
+   (the old 62.5%, where loop 2 finished, is now 100%). A uniform time
+   stretch moves both layers together, so the dissolve alignment is
+   preserved exactly; that is the whole reason it was done this way rather
+   than by re-deriving steps. */
+@keyframes loop-1 {
+  0%    { transform: scale(101);     opacity: 1; }
+  4%    { transform: scale(57.04); }
+  8%    { transform: scale(32.213); }
+  12%   { transform: scale(18.192); }
+  16%   { transform: scale(10.274); }
+  20%   { transform: scale(5.8023); }
+  24%   { transform: scale(3.2768); }
+  28%   { transform: scale(1.8506); }
+  32%   { transform: scale(1.0451); }
+  36%   { transform: scale(0.59023); }
+  40%   { transform: scale(0.33333); opacity: 1; }
+  44%   { transform: scale(0.27751); }
+  48%   { transform: scale(0.23104); }
+  52%   { transform: scale(0.19236); }
+  56%   { transform: scale(0.16015); }
+  60%   { transform: scale(0.13333); opacity: 0; }
+  100%  { transform: scale(0.13333); opacity: 0; }
+}
+
+/* Same 1.6x time stretch. The old overshoot-and-fade tail (everything past
+   62.5%) is gone: it existed only to hand over to loop 3, and with nothing
+   to hand over to it would have faded the page to blank paper for the last
+   quarter of the scroll. Loop 2 now finishes the piece, holding opaque on
+   the nine-grid view at 100%. */
+@keyframes loop-2 {
+  0%    { transform: scale(150);    opacity: 0; }
+  30%   { opacity: 0; }
+  40%   { transform: scale(150);    opacity: 0; }
+  44%   { transform: scale(123.63); opacity: 0.5; }
+  48%   { transform: scale(101.89); opacity: 1; }
+  52%   { transform: scale(83.974); }
+  56%   { transform: scale(69.209); }
+  60%   { transform: scale(57.04);  opacity: 1; }
+  64%   { transform: scale(34.107); }
+  68%   { transform: scale(20.395); }
+  72%   { transform: scale(12.195); }
+  76%   { transform: scale(7.2922); }
+  80%   { transform: scale(4.3604); }
+  84%   { transform: scale(2.6073); }
+  88%   { transform: scale(1.5591); }
+  92%   { transform: scale(0.93226); }
+  96%   { transform: scale(0.55745); }
+  100%  { transform: scale(0.33333); opacity: 1; }
+}
+
+/* stylelint-enable declaration-block-single-line-max-declarations,
+   number-max-precision */
+
+/* The readout — the number the whole zoom exists to deliver, so it reads as
+   a labelled instrument rather than an unexplained figure in a badge. Two
+   lines: a fixed caption naming what the digits are, then the digits.
+
+   tabular-nums is load-bearing, not decoration. The value is rewritten every
+   animation frame; with proportional figures a 3 turning into a 1 narrows
+   that column and shoves every digit beside it sideways, so the number
+   visibly shimmers the whole way up. Fixed-width digits hold the columns
+   still while the value races. Right-aligned and anchored to the right edge
+   so the box grows leftward into empty space as digits are added — the
+   ones place never moves. */
+.tally {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 5;
+  display: grid;
+  gap: 0.1rem;
+  justify-items: end;
+  margin: 0;
+  padding: 0.6rem 1.15rem 0.8rem;
+  background: var(--ink-deep);
+  border: 1px solid var(--ink-deep);
+  border-top: 3px solid var(--amber);
+  border-radius: var(--radius);
+  box-shadow:
+    0 2px 6px rgb(20 22 26 / 18%),
+    0 14px 40px rgb(20 22 26 / 22%);
+}
+
+.tally-label {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--amber-soft);
+}
+
+.tally-value {
+  min-width: 7ch;
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  color: var(--paper);
+  text-align: right;
+  letter-spacing: -0.01em;
+  font-feature-settings: "tnum" 1;
+}
+
+.zoom-wrapper.reduced-motion .tally {
+  display: none;
+}
+
+/* One statement pops up at a time, keyed to the milestone the tally has
+   most recently passed (see amountToProgress in square-tally.ts) — same
+   instant-in/delayed-out crossfade the old per-point captions used, so the
+   incoming statement is immediately in the a11y tree but the outgoing one
+   doesn't vanish before it finishes fading. */
+/* Front and centre. The statement is the thing the zoom exists to deliver a
+   context for, so it sits in the middle of the view at reading size rather
+   than tucked along the bottom edge where it read as a caption on someone
+   else's picture. The hero has faded out by 2% of the scroll, so there is
+   nothing to collide with. Accent rule moved to the top edge: on a centred
+   block a left bar pulls the eye off-axis. */
+.square-statement {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 3rem);
+  max-width: 40rem;
   text-align: center;
-  gap: 0.35rem;
-  width: 100%;
-  height: 100%;
-  padding: 1rem;
+  text-wrap: balance;
+  margin: 0;
+  padding: 2rem 2.5rem;
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 3.2vw, 2.25rem);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow:
+    0 4px 10px rgb(22 24 29 / 8%),
+    0 30px 70px rgb(22 24 29 / 20%);
+  z-index: 5;
   opacity: 0;
   visibility: hidden;
   transition:
@@ -237,74 +490,21 @@ h1 {
     visibility 0s linear 0.25s;
 }
 
-.scale-point[data-content-focused] .scale-point-content {
+.square-statement[data-active] {
   opacity: 1;
   visibility: visible;
-  pointer-events: auto;
   transition: opacity 0.25s ease;
 }
 
-.zoom-wrapper.reduced-motion .scale-point-content {
+.zoom-wrapper.reduced-motion .square-statement {
   transition: none;
 }
 
-.scale-point-label {
-  margin: 0;
-  font-weight: 600;
-  color: var(--ink);
-}
-
-.scale-point-amount {
-  margin: 0;
-  font-family: var(--serif);
-  font-size: 1.4rem;
-  color: var(--accent-ink);
-}
-
-.scale-point-note,
-.scale-point-citation {
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--ink-soft);
-}
-
-.scale-point-citation.citation-link {
-  display: inline-block;
-}
-
-/* LOD: hidden — the disc is too small to matter this frame; visibility:
-   hidden (not display: none) so it stays measurable, while being correctly
-   removed from both the tab order and the accessibility tree. Content
-   visibility is handled separately, by [data-content-focused] above — a
-   point can be a visible "dot" disc with no caption, but never the reverse. */
-.scale-point[data-lod="hidden"] {
-  visibility: hidden;
-}
-
-.camera-readout {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  font-family: var(--serif);
-  font-size: 1rem;
-  color: var(--ink-soft);
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0.4rem 0.9rem;
-  margin: 0;
-  z-index: 5;
-}
-
-.zoom-wrapper.reduced-motion .camera-readout {
-  display: none;
-}
-
-/* Reduced-motion navigation — same fixed scene and shared camera transform
-   as the animated version, just moved discretely by a button press or arrow
-   key instead of every scroll frame (see showMilestone in index.astro).
-   Hidden by default; only shown once JS confirms reduced motion is active,
-   so there's no dead control pair sitting over the animated version. */
+/* Reduced-motion navigation — same grid and loop/scale math as the animated
+   version, just moved discretely by a button press or arrow key instead of
+   every scroll frame (see showMilestone in index.astro). Hidden by default;
+   only shown once JS confirms reduced motion is active, so there's no dead
+   control pair sitting over the animated version. */
 .milestone-nav {
   display: none;
 }
@@ -353,7 +553,7 @@ h1 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scale-point {
+  .square-statement {
     transition: none;
   }
 }
@@ -372,6 +572,27 @@ h1 {
 .citation-link:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+/* Reachable but weightless. The citations stay in the document — they back
+   the "fact" milestones, the links check crawls them, a screen reader still
+   reaches them — but they must cost the page zero height, or the scroll
+   runs on past the end of the zoom into blank paper.
+
+   position: FIXED, not absolute, is the whole trick. An absolutely
+   positioned footer still resolves to its static position, which sits after
+   a 6660vh wrapper, and that pushed the document 112px past the zoom's last
+   frame. Fixed takes it out of the flow entirely. */
+.citations.is-hidden {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .citations {
@@ -405,18 +626,27 @@ h1 {
 
 @media (width <= 30rem) {
   .hero {
-    padding: 3rem 0 0.5rem;
+    padding: 1.25rem 1rem;
   }
 
-  .scale-point-content {
-    padding: 0.6rem;
+  /* Still centred, just less generous with the padding — a phone has no room
+     to spare around a 40rem panel. */
+  .square-statement {
+    padding: 1.25rem 1.15rem;
   }
 
-  .camera-readout {
-    bottom: 1rem;
+  .tally {
     right: 1rem;
-    font-size: 0.85rem;
-    padding: 0.3rem 0.7rem;
+    bottom: 1rem;
+    padding: 0.45rem 0.8rem 0.55rem;
+  }
+
+  .tally-label {
+    font-size: 0.5625rem;
+  }
+
+  .tally-value {
+    font-size: 1.15rem;
   }
 
   .milestone-nav {

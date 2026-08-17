@@ -21,3 +21,8 @@ mise.local.toml
 # your course API key, and this repo goes public when you ship. Your tracked
 # harness is CLAUDE.md (and any AGENTS.md), not this directory.
 .claude/
+
+# Scratch sandbox used to prototype the squares-zoom mechanism before it was
+# ported into src/ + public/ — never shipped, not part of the deployed site.
+pen-zoom-demo/
+circles-grid.svg

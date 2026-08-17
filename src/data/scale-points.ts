@@ -28,7 +28,7 @@ export interface ScalePointCitation {
   quote?: string;
 }
 
-interface ScalePointSeed {
+export interface ScalePointSeed {
   id: string;
   label: string;
   amountUSD: number;
@@ -44,7 +44,7 @@ export interface ScalePoint extends ScalePointSeed {
   // frame, never touched again after this module evaluates.
 }
 
-const referencePoints: ScalePointSeed[] = [
+export const referencePoints: ScalePointSeed[] = [
   {
     id: "dollar-bill",
     label: "A single dollar bill",
@@ -143,7 +143,7 @@ const referencePoints: ScalePointSeed[] = [
   },
 ];
 
-const aiMoneyPoints: ScalePointSeed[] = [
+export const aiMoneyPoints: ScalePointSeed[] = [
   {
     id: "your-exposure",
     label: "Your index-fund AI exposure",
