@@ -1,0 +1,75 @@
+---
+// One point in the fixed SVG scene. Its world position (cx on the disc, x
+// on the foreignObject) is set ONCE here from point.logValue and never
+// touched again — the only thing that moves this point on screen afterwards
+// is the shared <g id="camera"> transform in index.astro, which pans/zooms
+// the whole scene uniformly. The only per-frame writes this point itself
+// receives are its disc's `r` (from the shared computeOnScreenPx formula —
+// see index.astro) and data-lod/data-content-focused (from the shared
+// cameraRank/focusedRank) — nothing about its own position is ever
+// independently animated.
+//
+// Content (label/amount/citation-or-note) lives in a <foreignObject> so
+// citations stay real, keyboard-focusable <a> elements — genuine DOM,
+// children of the SVG tree, not a parallel shadow layer. Only the single
+// [data-content-focused] point shows its content at all (matching Scale of
+// the Universe's one-caption-at-a-time feel); everything else stays
+// visibility: hidden, removing a not-currently-focal point's citation from
+// both the tab order and the accessibility tree.
+import type { ScalePoint } from "../data/scale-points";
+import { computeWorldX, formatDollars, PIXELS_PER_DECADE } from "../lib/scale-math";
+
+interface Props {
+  point: ScalePoint;
+}
+
+const { point } = Astro.props;
+const formattedAmount = formatDollars(point.amountUSD);
+const citationLabel = point.citation?.quote
+  ? `Source: ${point.citation.source} — "${point.citation.quote}"`
+  : point.citation
+    ? `Source: ${point.citation.source}`
+    : undefined;
+
+const worldX = computeWorldX(point.logValue, PIXELS_PER_DECADE);
+const FO_WIDTH = 340;
+const FO_HEIGHT = 260;
+---
+
+<g
+  class="scale-point"
+  data-scale-id={point.id}
+  data-kind={point.kind}
+  data-category={point.category}
+  data-lod="hidden"
+  role="group"
+  aria-label={`${point.label}, ${formattedAmount}`}
+>
+  <circle class="scale-point-disc" cx={worldX} cy="0" r="0" aria-hidden="true"></circle>
+  <foreignObject
+    class="scale-point-fo"
+    x={worldX - FO_WIDTH / 2}
+    y={-FO_HEIGHT / 2}
+    width={FO_WIDTH}
+    height={FO_HEIGHT}
+  >
+    <div xmlns="http://www.w3.org/1999/xhtml" class="scale-point-content">
+      <p class="scale-point-label">{point.label}</p>
+      <p class="scale-point-amount">{formattedAmount}</p>
+      {
+        point.kind === "ai-money" && point.citation ? (
+          <a
+            class="citation-link scale-point-citation"
+            href={point.citation.url}
+            title={point.citation.quote}
+            aria-label={citationLabel}
+          >
+            source
+          </a>
+        ) : (
+          <p class="scale-point-note">{point.note}</p>
+        )
+      }
+    </div>
+  </foreignObject>
+</g>

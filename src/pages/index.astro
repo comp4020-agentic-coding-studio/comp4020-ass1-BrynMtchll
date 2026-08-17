@@ -1,5 +1,41 @@
 ---
 import "../styles/global.css";
+import { scalePoints } from "../data/scale-points";
+import ScalePoint from "../components/ScalePoint.astro";
+
+// One "beat" of scroll room per point on the ladder, so the zoom has enough
+// runway to actually pass through each point's dot -> detail -> dot
+// transition rather than skipping past several per screenful.
+const RUNWAY_VH_PER_POINT = 60;
+const zoomRunwayVh = scalePoints.length * RUNWAY_VH_PER_POINT;
+
+// The footer cites ai-money points only — reference points aren't claims, so
+// they carry their "for scale" note inline instead of a footer entry. A
+// handful of points share one underlying deal (e.g. the Tunguz breakdown
+// backs Nvidia, Microsoft, and Oracle's figures), so this groups by source
+// rather than listing the same citation three times.
+const citationGroups = Array.from(
+  scalePoints
+    .filter((point) => point.kind === "ai-money" && point.citation)
+    .reduce((groups, point) => {
+      const citation = point.citation!;
+      const key = citation.url;
+      const existing = groups.get(key);
+      if (existing) {
+        if (!existing.labels.includes(point.label)) {
+          existing.labels.push(point.label);
+        }
+      } else {
+        groups.set(key, {
+          source: citation.source,
+          url: citation.url,
+          labels: [point.label],
+        });
+      }
+      return groups;
+    }, new Map<string, { source: string; url: string; labels: string[] }>())
+    .values(),
+);
 ---
 
 <!doctype html>
@@ -7,7 +43,7 @@ import "../styles/global.css";
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>COMP4020 prototype</title>
+    <title>How big is the AI bet?</title>
   </head>
   <body>
     <header>
@@ -16,16 +52,312 @@ import "../styles/global.css";
       </nav>
     </header>
     <main>
-      <h1>COMP4020 prototype</h1>
-      <p data-testid="intro">
-        Replace this with your prototype. This week's brief is on the course website;
-        <code>spec/README.md</code> explains how the checks in this repo relate to it.
-      </p>
+      <div class="hero">
+        <p class="kicker">Money committed to AI, at scale</p>
+        <h1>How big is the AI bet?</h1>
+        <p class="framing">
+          Scroll to zoom out — from a single dollar bill to the trillions
+          committed to AI infrastructure, passing familiar amounts and sourced
+          AI deals along the way.
+        </p>
+      </div>
+
+      <section
+        class="zoom-wrapper"
+        id="zoom-wrapper"
+        style={`--runway: ${zoomRunwayVh}vh`}
+        aria-label="A zoom from one dollar to trillions committed to AI"
+      >
+        <div class="zoom-stage" id="zoom-stage">
+          <svg class="zoom-svg" id="zoom-svg">
+            <g id="camera">
+              {scalePoints.map((point) => <ScalePoint point={point} />)}
+            </g>
+          </svg>
+          <p class="camera-readout" id="camera-readout" aria-hidden="true"></p>
+          <div class="milestone-nav" id="milestone-nav">
+            <button type="button" id="milestone-prev" class="milestone-btn">
+              ◀ Previous
+            </button>
+            <p class="milestone-label" id="milestone-label" aria-live="polite"></p>
+            <button type="button" id="milestone-next" class="milestone-btn">
+              Next ▶
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <footer class="citations">
+        <h2>Sources</h2>
+        <ul>
+          {
+            citationGroups.map((group) => (
+              <li>
+                <strong>{group.labels.join(", ")}</strong>:{" "}
+                <a href={group.url}>{group.source}</a>
+              </li>
+            ))
+          }
+        </ul>
+      </footer>
     </main>
     <script>
-      const intro = document.querySelector<HTMLElement>('[data-testid="intro"]');
-      if (intro) {
-        intro.dataset.ready = "true";
+      import {
+        milestoneIds,
+        minAmountUSD,
+        maxAmountUSD,
+        scalePoints,
+      } from "../data/scale-points";
+      import {
+        classifyLod,
+        computeCameraRank,
+        computeCameraWorldX,
+        computeFocusedRank,
+        computeOnScreenPx,
+        computeWorldX,
+        formatDollars,
+        PIXELS_PER_DECADE,
+        progressToCameraAmount,
+      } from "../lib/scale-math";
+      import {
+        getScrollProgress,
+        initLenis,
+        prefersReducedMotion,
+      } from "../lib/scroll-state";
+
+      const lenis = initLenis();
+
+      // The on-screen size (px) a point exactly at the camera's current
+      // amount renders at — every other point's size falls off from this by
+      // 10 ** -decadesAway (see computeOnScreenPx). This is what makes the
+      // zoom actually a zoom: the current focal point's disc grows to
+      // BLEED PAST the viewport edges (not just fill a small fixed card),
+      // recomputed every frame off the live viewport so it holds on resize.
+      const REFERENCE_PX_BLEED = 1.3;
+
+      const wrapper = document.querySelector<HTMLElement>("#zoom-wrapper");
+      const stage = document.querySelector<HTMLElement>("#zoom-stage");
+      const camera = document.querySelector<SVGGElement>("#camera");
+      const readout = document.querySelector<HTMLElement>("#camera-readout");
+      const prevBtn = document.querySelector<HTMLButtonElement>("#milestone-prev");
+      const nextBtn = document.querySelector<HTMLButtonElement>("#milestone-next");
+      const milestoneLabel = document.querySelector<HTMLElement>("#milestone-label");
+
+      if (wrapper && stage && camera) {
+        const pointEls = Array.from(
+          stage.querySelectorAll<SVGGElement>(".scale-point"),
+        );
+        const sortedAmounts = scalePoints.map((point) => point.amountUSD);
+        const amountByEl = new Map(
+          pointEls.map((el) => {
+            const point = scalePoints.find((p) => p.id === el.dataset.scaleId);
+            return [el, point?.amountUSD ?? 0] as const;
+          }),
+        );
+        const rankByEl = new Map(
+          pointEls.map((el) => {
+            const rank = scalePoints.findIndex(
+              (p) => p.id === el.dataset.scaleId,
+            );
+            return [el, rank < 0 ? 0 : rank] as const;
+          }),
+        );
+        const discByEl = new Map(
+          pointEls.map((el) => [
+            el,
+            el.querySelector<SVGCircleElement>(".scale-point-disc"),
+          ]),
+        );
+        const foByEl = new Map(
+          pointEls.map((el) => [
+            el,
+            el.querySelector<SVGForeignObjectElement>(".scale-point-fo"),
+          ]),
+        );
+        const worldXByEl = new Map(
+          pointEls.map((el) => {
+            const point = scalePoints.find((p) => p.id === el.dataset.scaleId);
+            const worldX = point
+              ? computeWorldX(point.logValue, PIXELS_PER_DECADE)
+              : 0;
+            return [el, worldX] as const;
+          }),
+        );
+        // A point's disc sits at its true, never-adjusted world position —
+        // that's what makes the zoom's proportions real. But its caption can
+        // be up to half a decade (half of PIXELS_PER_DECADE) off-center from
+        // the viewport at the moment focus swaps from one point to the next,
+        // and on a narrow (mobile) viewport that's enough for a fixed-width
+        // caption box to slide partly off-screen. So the caption's on-screen
+        // x is clamped to stay within the viewport every frame — the disc's
+        // cx never moves, only the label/citation box's position, and only
+        // ever within bounds the current camera state already determines.
+        const FO_PADDING = 16;
+
+        // The one shared write that makes this a "camera": a single
+        // translate, applied uniformly to the whole scene via the <g>
+        // every point lives inside. No individual point's own position is
+        // ever set anywhere else in this file or in ScalePoint.astro — only
+        // this transform moves. Each point's `r` (from the shared
+        // computeOnScreenPx formula) and data-lod/data-content-focused are
+        // still set per point, but from the one shared cameraAmount, never
+        // independently tuned.
+        function renderCamera(cameraAmount: number): void {
+          const stageRect = stage!.getBoundingClientRect();
+          const cameraX =
+            stageRect.width / 2 -
+            computeCameraWorldX(cameraAmount, PIXELS_PER_DECADE);
+          camera!.setAttribute(
+            "transform",
+            `translate(${cameraX}, ${stageRect.height / 2})`,
+          );
+
+          const referencePx =
+            Math.max(window.innerWidth, window.innerHeight) *
+            REFERENCE_PX_BLEED;
+          const cameraRank = computeCameraRank(cameraAmount, sortedAmounts);
+          const focusedRank = computeFocusedRank(cameraRank);
+          for (const el of pointEls) {
+            const amount = amountByEl.get(el) ?? 0;
+            const onScreenPx = computeOnScreenPx(
+              amount,
+              cameraAmount,
+              referencePx,
+            );
+            el.dataset.lod = classifyLod(onScreenPx, referencePx);
+            // onScreenPx is a diameter (same convention as the old
+            // --disc-px width); halve it for the circle's radius.
+            discByEl.get(el)?.setAttribute("r", `${onScreenPx / 2}`);
+            const rank = rankByEl.get(el) ?? 0;
+            el.toggleAttribute("data-content-focused", rank === focusedRank);
+
+            const fo = foByEl.get(el);
+            if (fo) {
+              const foWidth = fo.width.baseVal.value;
+              const worldX = worldXByEl.get(el) ?? 0;
+              const screenLeft = worldX + cameraX - foWidth / 2;
+              const clampedScreenLeft = Math.max(
+                FO_PADDING,
+                Math.min(stageRect.width - foWidth - FO_PADDING, screenLeft),
+              );
+              fo.setAttribute("x", `${clampedScreenLeft - cameraX}`);
+            }
+          }
+          if (readout) {
+            readout.textContent = formatDollars(cameraAmount);
+          }
+        }
+
+        const milestones = milestoneIds
+          .map((id) => scalePoints.find((point) => point.id === id))
+          .filter((point): point is (typeof scalePoints)[number] =>
+            Boolean(point),
+          );
+
+        if (prefersReducedMotion()) {
+          // No pin, no scroll-driven zoom — the same fixed scene and the
+          // same shared camera mechanism, just moved discretely between
+          // milestones by a button press or arrow key instead of every
+          // animation frame.
+          wrapper.classList.add("reduced-motion");
+          let milestoneIndex = 0;
+
+          function showMilestone(index: number): void {
+            milestoneIndex = Math.max(
+              0,
+              Math.min(milestones.length - 1, index),
+            );
+            const milestone = milestones[milestoneIndex];
+            if (!milestone) return;
+            renderCamera(milestone.amountUSD);
+            if (milestoneLabel) {
+              milestoneLabel.textContent = `${milestone.label} — ${formatDollars(milestone.amountUSD)}`;
+            }
+            if (prevBtn) prevBtn.disabled = milestoneIndex === 0;
+            if (nextBtn) {
+              nextBtn.disabled = milestoneIndex === milestones.length - 1;
+            }
+          }
+
+          prevBtn?.addEventListener("click", () => {
+            showMilestone(milestoneIndex - 1);
+          });
+          nextBtn?.addEventListener("click", () => {
+            showMilestone(milestoneIndex + 1);
+          });
+          stage.tabIndex = 0;
+          stage.addEventListener("keydown", (event) => {
+            if (event.key === "ArrowLeft") showMilestone(milestoneIndex - 1);
+            if (event.key === "ArrowRight") showMilestone(milestoneIndex + 1);
+          });
+
+          showMilestone(0);
+        } else {
+          const minLog = Math.log10(minAmountUSD);
+          const maxLog = Math.log10(maxAmountUSD);
+          const milestoneProgresses = milestones.map(
+            (point) => (point.logValue - minLog) / (maxLog - minLog),
+          );
+
+          // Milestone "snap": once scrolling settles (no Lenis scroll event
+          // for SETTLE_DELAY_MS), ease toward the nearest milestone if it's
+          // close enough — via Lenis's own scrollTo, which further user
+          // scroll input interrupts cleanly. This is the JS fallback the
+          // plan allows in place of CSS scroll-snap, since Lenis already
+          // owns the scroll and a native snap point fighting a smoothed
+          // scroll position is a known way for the two to fight each other.
+          const SETTLE_DELAY_MS = 150;
+          const SNAP_THRESHOLD = 0.04;
+          let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+          function scrollYForProgress(progress: number): number {
+            const rect = wrapper!.getBoundingClientRect();
+            const scrollY = lenis.scroll;
+            const wrapperTop = scrollY + rect.top;
+            const scrollableDistance = Math.max(
+              0,
+              wrapper!.offsetHeight - window.innerHeight,
+            );
+            return wrapperTop + progress * scrollableDistance;
+          }
+
+          function scheduleSnapCheck(): void {
+            if (settleTimer) clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+              const progress = getScrollProgress(wrapper!);
+              let nearestProgress: number = milestoneProgresses[0] ?? 0;
+              let nearestDistance = Infinity;
+              for (const milestoneProgress of milestoneProgresses) {
+                const distance = Math.abs(milestoneProgress - progress);
+                if (distance < nearestDistance) {
+                  nearestDistance = distance;
+                  nearestProgress = milestoneProgress;
+                }
+              }
+              if (nearestDistance > 0.0005 && nearestDistance < SNAP_THRESHOLD) {
+                lenis.scrollTo(scrollYForProgress(nearestProgress), {
+                  duration: 0.6,
+                  easing: (t: number) => 1 - (1 - t) ** 3,
+                });
+              }
+            }, SETTLE_DELAY_MS);
+          }
+
+          lenis.on("scroll", scheduleSnapCheck);
+
+          function onScrollFrame(): void {
+            const progress = getScrollProgress(wrapper!);
+            const cameraAmount = progressToCameraAmount(
+              progress,
+              minAmountUSD,
+              maxAmountUSD,
+            );
+            renderCamera(cameraAmount);
+            requestAnimationFrame(onScrollFrame);
+          }
+
+          requestAnimationFrame(onScrollFrame);
+        }
       }
     </script>
   </body>

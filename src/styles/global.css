@@ -1,16 +1,432 @@
+:root {
+  --ink: #16181d;
+  --ink-soft: #4a4e58;
+  --paper: #faf8f4;
+  --paper-raised: #fff;
+  --line: #dcd7cc;
+  --accent: #a13d2c;
+  --accent-ink: #7a2d1f;
+  --serif: "Iowan Old Style", "Palatino Linotype", palatino, georgia, ui-serif,
+    serif;
+  --sans: -apple-system, blinkmacsystemfont, "Segoe UI", inter, system-ui,
+    sans-serif;
+  --container: 42rem;
+  --radius: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+html {
+  overflow-x: clip;
+}
+
 body {
   margin: 0;
-  padding: 2rem;
-  font-family: system-ui, sans-serif;
-  line-height: 1.6;
-  color: #1a1a1a;
+  padding: 0;
+  overflow-x: clip;
+  font-family: var(--sans);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  color: var(--ink);
+  background: var(--paper);
 }
 
 main {
-  max-width: 40rem;
+  max-width: var(--container);
   margin: 0 auto;
+  padding: 0 1.5rem;
 }
 
 a {
-  color: #0b5fff;
+  color: var(--accent-ink);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+h1,
+h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.6rem;
+  margin: 0 0 1.25rem;
+}
+
+/* Header / nav */
+
+header {
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+header nav {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+}
+
+header nav a {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+header nav a::before {
+  content: "◆ ";
+  color: var(--accent);
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+/* Hero */
+
+.hero {
+  padding: 4.5rem 0 1rem;
+}
+
+h1 {
+  font-size: clamp(2.2rem, 5vw, 3rem);
+  margin: 0 0 1.5rem;
+}
+
+.framing {
+  font-size: 1.2rem;
+  color: var(--ink-soft);
+  max-width: 34rem;
+  margin: 0 0 1rem;
+}
+
+.kicker {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin: 0 0 1rem;
+}
+
+/* Zoom stage — the site's one continuous scroll-driven mechanic. A tall
+   full-bleed wrapper holds a sticky full-viewport stage; every scale point
+   shares one center point and is sized every frame from its computed
+   on-screen px (see index.astro's onScrollFrame). */
+
+.zoom-wrapper {
+  position: relative;
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  height: calc(100vh + var(--runway, 0vh));
+}
+
+.zoom-wrapper.reduced-motion {
+  height: auto;
+}
+
+.zoom-stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.zoom-wrapper.reduced-motion .zoom-stage {
+  position: relative;
+  height: 100vh;
+}
+
+/* One fixed SVG scene: every point is laid out once (see ScalePoint.astro)
+   and the ONLY thing that moves afterwards is the shared <g id="camera">
+   transform set in index.astro — a single translate applied uniformly to
+   the whole scene, never a per-object position. */
+.zoom-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.scale-point {
+  pointer-events: none;
+}
+
+/* The actual "zoom" — this disc's radius is set every frame straight from
+   the point's true computed on-screen size (see index.astro's shared
+   computeOnScreenPx call), continuously, from a barely-visible speck up to
+   viewport-filling. Colored by category, not by kind — kind still drives the
+   citation-vs-note split in the content below, but reading everyday
+   purchases through national-scale figures as one flat color loses the
+   coffee-vs-GDP distinction the disc is meant to carry. */
+.scale-point-disc {
+  opacity: 0.16;
+}
+
+.scale-point[data-category="everyday"] .scale-point-disc {
+  fill: var(--ink-soft);
+}
+
+.scale-point[data-category="corporate"] .scale-point-disc {
+  fill: #2f6f6f;
+}
+
+.scale-point[data-category="national"] .scale-point-disc {
+  fill: #3a5ba0;
+}
+
+.scale-point[data-category="ai-investment"] .scale-point-disc {
+  fill: var(--accent);
+}
+
+/* Text content (label/amount/citation-or-note) lives in a <foreignObject> so
+   it stays legible regardless of how large or small the disc it sits on is,
+   and so citations stay real, keyboard-focusable <a> elements. Only ONE
+   point's content is ever shown at a time — whichever the per-frame script
+   marks [data-content-focused] (see computeFocusedRank in scale-math.ts) —
+   matching Scale of the Universe's single-caption feel instead of stacking
+   multiple simultaneously-visible labels around the screen. A short opacity
+   transition softens the handoff as focus moves from one point to the
+   next; visibility flips instantly on the way in (so the incoming caption
+   is immediately in the a11y tree) but is delayed on the way out (so it
+   doesn't vanish before it's finished fading, and only one point is ever
+   keyboard/AT reachable). */
+.scale-point-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.35rem;
+  width: 100%;
+  height: 100%;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.25s ease,
+    visibility 0s linear 0.25s;
+}
+
+.scale-point[data-content-focused] .scale-point-content {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.25s ease;
+}
+
+.zoom-wrapper.reduced-motion .scale-point-content {
+  transition: none;
+}
+
+.scale-point-label {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.scale-point-amount {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  color: var(--accent-ink);
+}
+
+.scale-point-note,
+.scale-point-citation {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.scale-point-citation.citation-link {
+  display: inline-block;
+}
+
+/* LOD: hidden — the disc is too small to matter this frame; visibility:
+   hidden (not display: none) so it stays measurable, while being correctly
+   removed from both the tab order and the accessibility tree. Content
+   visibility is handled separately, by [data-content-focused] above — a
+   point can be a visible "dot" disc with no caption, but never the reverse. */
+.scale-point[data-lod="hidden"] {
+  visibility: hidden;
+}
+
+.camera-readout {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  font-family: var(--serif);
+  font-size: 1rem;
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  margin: 0;
+  z-index: 5;
+}
+
+.zoom-wrapper.reduced-motion .camera-readout {
+  display: none;
+}
+
+/* Reduced-motion navigation — same fixed scene and shared camera transform
+   as the animated version, just moved discretely by a button press or arrow
+   key instead of every scroll frame (see showMilestone in index.astro).
+   Hidden by default; only shown once JS confirms reduced motion is active,
+   so there's no dead control pair sitting over the animated version. */
+.milestone-nav {
+  display: none;
+}
+
+.zoom-wrapper.reduced-motion .milestone-nav {
+  position: absolute;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  z-index: 5;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+}
+
+.milestone-btn {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  cursor: pointer;
+}
+
+.milestone-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.milestone-btn:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.milestone-label {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scale-point {
+    transition: none;
+  }
+}
+
+/* Citations */
+
+.citation-link {
+  font-size: 0.7rem;
+  text-decoration: none;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05em 0.4em;
+}
+
+.citation-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.citations {
+  border-top: 1px solid var(--line);
+  padding: 3rem 0 4rem;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.citations h2 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.citations ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.citations li {
+  border-bottom: 1px dotted var(--line);
+  padding-bottom: 0.6rem;
+}
+
+.citations li strong {
+  color: var(--ink);
+}
+
+@media (width <= 30rem) {
+  .hero {
+    padding: 3rem 0 0.5rem;
+  }
+
+  .scale-point-content {
+    padding: 0.6rem;
+  }
+
+  .camera-readout {
+    bottom: 1rem;
+    right: 1rem;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.7rem;
+  }
+
+  .milestone-nav {
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .milestone-label {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
