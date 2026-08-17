@@ -114,7 +114,6 @@ const citationGroups = Array.from(
         computeCameraWorldX,
         computeFocusedRank,
         computeOnScreenPx,
-        computeWorldX,
         formatDollars,
         PIXELS_PER_DECADE,
         progressToCameraAmount,
@@ -168,32 +167,6 @@ const citationGroups = Array.from(
             el.querySelector<SVGCircleElement>(".scale-point-disc"),
           ]),
         );
-        const foByEl = new Map(
-          pointEls.map((el) => [
-            el,
-            el.querySelector<SVGForeignObjectElement>(".scale-point-fo"),
-          ]),
-        );
-        const worldXByEl = new Map(
-          pointEls.map((el) => {
-            const point = scalePoints.find((p) => p.id === el.dataset.scaleId);
-            const worldX = point
-              ? computeWorldX(point.logValue, PIXELS_PER_DECADE)
-              : 0;
-            return [el, worldX] as const;
-          }),
-        );
-        // A point's disc sits at its true, never-adjusted world position —
-        // that's what makes the zoom's proportions real. But its caption can
-        // be up to half a decade (half of PIXELS_PER_DECADE) off-center from
-        // the viewport at the moment focus swaps from one point to the next,
-        // and on a narrow (mobile) viewport that's enough for a fixed-width
-        // caption box to slide partly off-screen. So the caption's on-screen
-        // x is clamped to stay within the viewport every frame — the disc's
-        // cx never moves, only the label/citation box's position, and only
-        // ever within bounds the current camera state already determines.
-        const FO_PADDING = 16;
-
         // The one shared write that makes this a "camera": a single
         // translate, applied uniformly to the whole scene via the <g>
         // every point lives inside. No individual point's own position is
@@ -230,18 +203,6 @@ const citationGroups = Array.from(
             discByEl.get(el)?.setAttribute("r", `${onScreenPx / 2}`);
             const rank = rankByEl.get(el) ?? 0;
             el.toggleAttribute("data-content-focused", rank === focusedRank);
-
-            const fo = foByEl.get(el);
-            if (fo) {
-              const foWidth = fo.width.baseVal.value;
-              const worldX = worldXByEl.get(el) ?? 0;
-              const screenLeft = worldX + cameraX - foWidth / 2;
-              const clampedScreenLeft = Math.max(
-                FO_PADDING,
-                Math.min(stageRect.width - foWidth - FO_PADDING, screenLeft),
-              );
-              fo.setAttribute("x", `${clampedScreenLeft - cameraX}`);
-            }
           }
           if (readout) {
             readout.textContent = formatDollars(cameraAmount);
