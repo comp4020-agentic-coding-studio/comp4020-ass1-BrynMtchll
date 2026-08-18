@@ -8,7 +8,7 @@
      it. Original kept at /tmp if the explicit-rect version is ever needed. -->
 <defs>
 <pattern id="cell" width="9.901" height="9.901" patternUnits="userSpaceOnUse">
-<rect x="1.45" y="1.45" width="7.0011" height="7.0011" fill="#333"/>
+<rect x="1.45" y="1.45" width="7.0011" height="7.0011" fill="#a13d2c"/>
 </pattern>
 </defs>
 <rect width="1000" height="1000" fill="url(#cell)"/>
