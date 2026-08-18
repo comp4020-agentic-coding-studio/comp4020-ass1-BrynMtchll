@@ -91,89 +91,6 @@ a:hover {
   color: var(--accent);
 }
 
-/* Hero — an overlay pinned inside the zoom stage itself (not normal document
-   flow) so the intro copy costs zero extra scroll height: the shared
-   scroll(root block) timeline the .cycle layers use would otherwise be
-   thrown off by however tall this text renders at a given viewport width.
-   Fades out over the first sliver of scroll via the same shared timeline. */
-.hero {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 4;
-  width: 100%;
-  max-width: var(--container);
-  padding: 2.25rem 2rem;
-  background: var(--paper-raised);
-  border: 1px solid var(--line);
-  border-top: 4px solid var(--accent);
-  border-radius: var(--radius);
-  box-shadow:
-    0 2px 6px rgb(22 24 29 / 6%),
-    0 24px 60px rgb(22 24 29 / 14%);
-  animation: hero-fade linear;
-  animation-timeline: scroll(root block);
-}
-
-/* Reduced motion has no scroll-driven fade to hide behind, so the intro
-   copy reverts to plain static content instead of a fading overlay. */
-.zoom-wrapper.reduced-motion .hero {
-  position: static;
-  transform: none;
-  width: auto;
-  padding: 2rem 0 1rem;
-  background: none;
-  border: none;
-  animation: none;
-  opacity: 1;
-}
-
-@keyframes hero-fade {
-  0% {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  2% {
-    opacity: 0;
-  }
-
-  2.0001% {
-    visibility: hidden;
-  }
-
-  100% {
-    opacity: 0;
-    visibility: hidden;
-  }
-}
-
-h1 {
-  font-size: clamp(2.2rem, 5vw, 3rem);
-  margin: 0 0 1.5rem;
-}
-
-.framing {
-  font-size: 1.2rem;
-  color: var(--ink-soft);
-  max-width: 34rem;
-  margin: 0 0 1rem;
-}
-
-.kicker {
-  display: inline-block;
-  font-family: var(--sans);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--paper);
-  background: var(--accent);
-  border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  margin: 0 0 1.1rem;
-}
 
 /* Squares zoom — the site's one continuous scroll-driven mechanic. Two
    full-viewport layers, one per loop, stacked directly on top of each other
@@ -625,10 +542,6 @@ img {
 }
 
 @media (width <= 30rem) {
-  .hero {
-    padding: 1.25rem 1rem;
-  }
-
   /* Still centred, just less generous with the padding — a phone has no room
      to spare around a 40rem panel. */
   .square-statement {

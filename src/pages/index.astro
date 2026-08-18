@@ -8,7 +8,7 @@ const squaresGridSrc = `${import.meta.env.BASE_URL}squares-grid.svg`;
 // other 8 tiles in each 3x3 arrangement are pure visual repetition —
 // aria-hidden so they don't get announced 9 times over.
 const gridAlt =
-  "A grid of individual squares, tiled around itself in a 3 by 3 arrangement, zooming out until all 9 tiles fill the view, then dissolving into a fresh grid that repeats the same zoom-out — a fractal loop where each square eventually stands for an entire previous grid.";
+  "A grid of individual squares, tiled around itself in a 3 by 3 arrangement, zooming out until all 9 tiles fill the view, then dissolving into a fresh grid that repeats the same zoom-out - a fractal loop where each square eventually stands for an entire previous grid.";
 
 // Two loops. Loop 1 zooms one square out to a full nine-grid view; loop 2's
 // single square stands for that entire finished grid and repeats the move.
@@ -51,7 +51,7 @@ const citationGroups = Array.from(
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>A trillion squares — money invested in AI, one dollar at a time</title>
+    <title>A trillion squares - money invested in AI, one dollar at a time</title>
   </head>
   <body>
     <main>
@@ -61,11 +61,16 @@ const citationGroups = Array.from(
         aria-label="A zoom through a fractal grid of squares, each square a dollar, ending at worldwide AI spending"
       >
         <div class="zoom-stage" id="zoom-stage">
-          <div class="hero">
-            <p class="kicker">Every square is a dollar</p>
+          {/* No intro panel — the piece opens on the square itself and the
+              centred labels do the narrating from there. The heading and
+              framing still have to exist for anyone not reading visually:
+              this is the page's only h1, it names the page for a screen
+              reader, and without it the document would open as an unlabelled
+              wall of decorative images. Visually hidden, not deleted. */}
+          <div class="visually-hidden">
             <h1>How much has the world bet on AI?</h1>
-            <p class="framing">
-              Scroll to zoom out. Each square is a dollar — and once nine
+            <p>
+              Every square is a dollar. Scroll to zoom out - and once nine
               grids fill the screen, that whole grid becomes just one square
               in the next zoom-out, so the tally keeps climbing long after
               the shapes loop back to where they started.
